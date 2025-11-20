@@ -1,9 +1,7 @@
 // App.tsx
-
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type React from "react";
 import "./App.css";
-
 import {
   FileText,
   Download,
@@ -28,10 +26,33 @@ import {
   XCircle as XCircleIcon,
 } from "lucide-react";
 
-const API_BASE = "http://localhost:8080/v1";
+// Function to get the backend URL dynamically
+const getBackendUrl = (): string => {
+  // Check for environment variable (e.g., from a .env file processed by Vite/React)
+  // If not found, fall back to a default or constructed URL based on window.location
+  const envUrl = process.env.REACT_APP_BACKEND_URL || import.meta.env.VITE_REACT_APP_BACKEND_URL;
+
+  if (envUrl) {
+    // Ensure the URL ends with '/v1' if not already present
+    const baseUrl = envUrl.endsWith('/v1') ? envUrl : `${envUrl}/v1`;
+    return baseUrl;
+  }
+
+  // Fallback: construct URL based on current window location
+  // This assumes the backend is on the same host but different port (e.g., :8080)
+  // Example: http://localhost:3000 -> http://localhost:8080/v1
+  // Example: https://myapp.com -> https://myapp.com:8080/v1 (if backend is on different port on same host)
+  // Or, if the backend is on a completely different host specified by an environment variable, it should be set there.
+  // For this fallback, we'll assume a common dev setup where backend is on port 8080.
+  // A more robust fallback might be needed depending on deployment.
+  // Here, we'll default to the original hardcoded value if environment variable is not set.
+  console.warn("REACT_APP_BACKEND_URL or VITE_REACT_APP_BACKEND_URL environment variable not found. Defaulting to http://localhost:8080/v1.");
+  return "http://localhost:8080/v1";
+};
+
+const API_BASE = getBackendUrl();
 
 type Status = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | null;
-
 interface ExtractionResult {
   fileId: string;
   runId: string;
@@ -40,26 +61,22 @@ interface ExtractionResult {
   warnings: string[];
   processingTimeMs: number;
 }
-
 interface Page {
   page: number;
   fields: Field[];
   tables: Table[];
 }
-
 interface Field {
   name: string;
   value: string | object;
   confidence?: number;
   bbox?: number[];
 }
-
 interface Table {
   name: string;
   rows: Record<string, any>[];
   confidence?: number;
 }
-
 interface HistoryItem {
   id: string;
   fileName: string;
@@ -69,22 +86,18 @@ interface HistoryItem {
   docType?: string;
   processingTimeMs?: number;
 }
-
 interface UploadResponse {
   runId: string;
 }
-
 interface RunStatusResponse {
   status?: Status;
   error?: string;
   result?: ExtractionResult;
 }
-
 interface ExportRequest {
   runId: string;
   format: 'json' | 'csv';
 }
-
 interface ExtractionSummary {
   runId: string;
   documentType: string;
@@ -100,7 +113,6 @@ const App = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<Status>(null);
   const [runId, setRunId] = useState<string | null>(null);
-
   const [extractedData, setExtractedData] = useState<ExtractionResult | null>(
     null
   );
@@ -113,25 +125,25 @@ const App = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<Status | 'ALL'>('ALL');
   const [isPolling, setIsPolling] = useState<boolean>(false);
-
   // New state variables for CRUD operations
   const [extractionList, setExtractionList] = useState<ExtractionSummary[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editingRunId, setEditingRunId] = useState<string | null>(null);
   const [editJson, setEditJson] = useState<string>("");
   const [showExtractionList, setShowExtractionList] = useState(false);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ---------- drag & drop ----------
+  // Log the API_BASE on component mount for debugging
+  useEffect(() => {
+    console.log("Using API Base URL:", API_BASE);
+  }, []);
 
+  // ---------- drag & drop ----------
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);
   };
-
   const handleDragLeave = () => setIsDragging(false);
-
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
@@ -139,13 +151,11 @@ const App = () => {
       handleFileSelect(e.dataTransfer.files[0]);
     }
   };
-
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       handleFileSelect(e.target.files[0]);
     }
   };
-
   const handleFileSelect = (selectedFile: File) => {
     const validTypes = [
       "image/jpeg",
@@ -157,12 +167,10 @@ const App = () => {
       setError("Please upload a valid image (JPG, PNG) or PDF file");
       return;
     }
-
     if (selectedFile.size > 10 * 1024 * 1024) {
       setError("File size must be less than 10MB");
       return;
     }
-
     setError(null);
     setFile(selectedFile);
     setExtractedData(null);
@@ -173,18 +181,15 @@ const App = () => {
   };
 
   // ---------- backend wiring ----------
-
   const uploadToBackend = (selectedFile: File) => {
     setUploadProgress(0);
     setIsProcessing(true);
     setStatus('QUEUED');
-
     const formData = new FormData();
     formData.append("file", selectedFile);
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", API_BASE + "/uploads", true);
-
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 100);
@@ -199,7 +204,6 @@ const App = () => {
             const resp: UploadResponse = JSON.parse(xhr.responseText);
             setRunId(resp.runId);
             setStatus("QUEUED");
-
             const newItem: HistoryItem = {
               id: crypto.randomUUID(),
               fileName: selectedFile.name,
@@ -211,7 +215,6 @@ const App = () => {
               }),
             };
             setHistory((prev) => [newItem, ...prev].slice(0, 10)); // Keep max 10 items
-
             startPolling(resp.runId);
           } catch (e) {
             console.error(e);
@@ -227,13 +230,11 @@ const App = () => {
         }
       }
     };
-
     xhr.onerror = () => {
       setError("Network error during upload");
       setIsProcessing(false);
       setStatus(null);
     };
-
     xhr.send(formData);
   };
 
@@ -244,7 +245,6 @@ const App = () => {
         const res = await fetch(API_BASE + "/runs/" + id);
         if (!res.ok) throw new Error("Failed to fetch run status");
         const data: RunStatusResponse = await res.json();
-
         const newStatus = data.status || null;
         setStatus(newStatus);
         if (data.error) setError(data.error);
@@ -252,7 +252,6 @@ const App = () => {
           setExtractedData(data.result);
           setCurrentStep(3); // Move to review step
         }
-
         setHistory((prev) =>
           prev.map((item) =>
             item.runId === id
@@ -272,7 +271,6 @@ const App = () => {
           setIsPolling(false);
           return;
         }
-
         setTimeout(poll, 2000);
       } catch (err) {
         console.error(err);
@@ -282,7 +280,6 @@ const App = () => {
         setIsPolling(false);
       }
     };
-
     poll();
   };
 
@@ -299,7 +296,6 @@ const App = () => {
   };
 
   // ---------- actions on extracted data ----------
-
   const copyToClipboard = () => {
     if (!extractedData) return;
     const text = JSON.stringify(extractedData, null, 2);
@@ -314,7 +310,6 @@ const App = () => {
     const dataUri =
       "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
     const exportFileDefaultName = "extracted-form-data.json";
-
     const linkElement = document.createElement("a");
     linkElement.setAttribute("href", dataUri);
     linkElement.setAttribute("download", exportFileDefaultName);
@@ -323,12 +318,10 @@ const App = () => {
 
   const downloadCSV = () => {
     if (!runId) return;
-    
     const data: ExportRequest = {
       runId,
       format: 'csv'
     };
-    
     fetch(API_BASE + "/exports", {
       method: 'POST',
       headers: {
@@ -352,7 +345,6 @@ const App = () => {
   };
 
   // ---------- CRUD Operations for Extractions ----------
-  
   const fetchAllExtractions = async () => {
     try {
       const response = await fetch(`${API_BASE}/extractions`);
@@ -386,7 +378,6 @@ const App = () => {
 
   const handleSaveEdit = () => {
     if (!editingRunId || !editJson) return;
-    
     try {
       const parsedJson = JSON.parse(editJson);
       fetch(`${API_BASE}/extractions/${editingRunId}`, {
@@ -455,7 +446,6 @@ const App = () => {
   };
 
   // ---------- history operations ----------
-  
   const deleteHistoryItem = (id: string) => {
     setHistory(prev => prev.filter(item => item.id !== id));
   };
@@ -463,7 +453,6 @@ const App = () => {
   const retryProcessing = (runId: string) => {
     const historyItem = history.find(item => item.runId === runId);
     if (!historyItem) return;
-    
     setStatus('QUEUED');
     setRunId(runId);
     setCurrentStep(2);
@@ -473,20 +462,18 @@ const App = () => {
   const viewDetails = (runId: string) => {
     const historyItem = history.find(item => item.runId === runId);
     if (!historyItem) return;
-    
     setExpandedRunId(expandedRunId === runId ? null : runId);
   };
 
   // Filter history based on search and filter
   const filteredHistory = history.filter(item => {
-    const matchesSearch = item.fileName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = item.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.runId.includes(searchTerm);
     const matchesStatus = filterStatus === 'ALL' || item.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
   // ---------- UI sections ----------
-
   const renderUploadSection = () => (
     <div className="space-y-8">
       {/* top text */}
@@ -526,7 +513,6 @@ const App = () => {
           accept="image/*,application/pdf"
           className="hidden"
         />
-
         <div className="flex flex-col items-center justify-center space-y-4">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-md shadow-blue-300/40">
             <FileText className="w-8 h-8 text-white" />
@@ -545,7 +531,6 @@ const App = () => {
             Browse Files
           </button>
         </div>
-
         {error && (
           <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg flex items-center">
             <XCircle className="w-5 h-5 mr-2" />
@@ -573,7 +558,6 @@ const App = () => {
               style={{ width: `${uploadProgress}%` }}
             ></div>
           </div>
-
           <div className="mt-4 flex items-center text-gray-600 gap-2 text-sm">
             {isProcessing ? (
               <>
@@ -607,7 +591,6 @@ const App = () => {
 
   const renderExtractedData = () => {
     if (!extractedData) return null;
-
     const docType = extractedData.documentType;
     const processingTime = extractedData.processingTimeMs;
     const pages: Page[] = extractedData.pages ?? [];
@@ -647,7 +630,6 @@ const App = () => {
               )}
             </p>
           </div>
-
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => setShowJSON(!showJSON)}
@@ -822,7 +804,6 @@ const App = () => {
             </h3>
           </div>
         </div>
-        
         <div className="flex flex-col gap-2">
           <button
             onClick={() => {
@@ -837,15 +818,14 @@ const App = () => {
             {showExtractionList ? "Hide List" : "Show All Extractions"}
           </button>
         </div>
-        
         {/* Extraction List */}
         {showExtractionList && (
           <div className="mt-4 max-h-60 overflow-y-auto border-t border-gray-200 pt-3">
             <div className="text-xs font-medium text-gray-500 mb-2">All Extractions</div>
             <ul className="space-y-2">
               {extractionList.map((extraction) => (
-                <li 
-                  key={extraction.runId} 
+                <li
+                  key={extraction.runId}
                   className="flex items-center justify-between bg-gray-50 p-2 rounded"
                 >
                   <div className="flex-1 min-w-0">
@@ -895,7 +875,6 @@ const App = () => {
               Recent Extractions
             </h3>
           </div>
-          
           <div className="flex gap-2">
             <button
               onClick={() => setHistory([])}
@@ -945,7 +924,7 @@ const App = () => {
                 className="rounded-lg border border-gray-200/70 bg-gray-50/80 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span 
+                  <span
                     className="line-clamp-1 font-medium text-gray-900 cursor-pointer hover:underline"
                     onClick={() => viewDetails(item.runId)}
                   >
@@ -974,7 +953,6 @@ const App = () => {
                     Run: {item.runId}
                   </span>
                 </div>
-                
                 {/* Expanded details */}
                 {expandedRunId === item.runId && (
                   <div className="mt-3 pt-3 border-t border-gray-200 text-[10px] space-y-2">
@@ -984,7 +962,6 @@ const App = () => {
                         {item.processingTimeMs ? `${item.processingTimeMs}ms` : 'N/A'}
                       </span>
                     </div>
-                    
                     <div className="flex justify-between">
                       <span className="text-gray-600">Status:</span>
                       <span className={`font-medium ${
@@ -995,7 +972,6 @@ const App = () => {
                         {item.status}
                       </span>
                     </div>
-                    
                     <div className="flex gap-2 mt-3">
                       <button
                         onClick={() => retryProcessing(item.runId)}
@@ -1069,7 +1045,6 @@ const App = () => {
             </div>
           </li>
         </ol>
-
         <div className="mt-4 flex items-center gap-2 text-xs text-gray-500">
           <Clock className="h-4 w-4" />
           <span>Typical processing: ~3s per page.</span>
@@ -1081,20 +1056,18 @@ const App = () => {
   // Edit Modal Component
   const renderEditModal = () => {
     if (!isEditing || !editingRunId) return null;
-    
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
             <h3 className="text-lg font-semibold">Edit Extraction Data (Run ID: {editingRunId})</h3>
-            <button 
+            <button
               onClick={() => setIsEditing(false)}
               className="text-gray-500 hover:text-gray-700"
             >
               <XCircleIcon className="w-6 h-6" />
             </button>
           </div>
-          
           <div className="flex-1 overflow-auto p-4">
             <textarea
               value={editJson}
@@ -1103,7 +1076,6 @@ const App = () => {
               placeholder="JSON data..."
             />
           </div>
-          
           <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
             <button
               onClick={() => setIsEditing(false)}
@@ -1124,7 +1096,6 @@ const App = () => {
   };
 
   // ---------- layout ----------
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       {/* header */}
@@ -1166,7 +1137,6 @@ const App = () => {
             <div className="absolute -top-32 -right-32 h-64 w-64 rounded-full bg-blue-100 blur-3xl" />
             <div className="absolute bottom-0 -left-16 h-48 w-48 rounded-full bg-purple-100 blur-3xl" />
           </div>
-
           <div className="relative p-6 sm:p-8 lg:p-10">
             {/* top row inside card */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
@@ -1183,7 +1153,6 @@ const App = () => {
                   backend.
                 </p>
               </div>
-
               <button
                 onClick={handleReset}
                 className="self-start sm:self-auto px-4 py-2 text-sm text-gray-600 hover:text-gray-900 bg-white/70 border border-gray-200 rounded-lg flex items-center gap-2 shadow-sm"
@@ -1205,7 +1174,6 @@ const App = () => {
                   </>
                 )}
               </section>
-
               <aside className="mt-4 lg:mt-0">{renderHistorySidebar()}</aside>
             </div>
           </div>
@@ -1219,15 +1187,12 @@ const App = () => {
             <p className="text-gray-800 font-semibold text-lg">
               © 2025 FormAI Extractor
             </p>
-
             <p className="text-gray-600 text-sm">
               Advanced AI-powered handwritten document understanding system.
             </p>
-
             <p className="text-xs text-gray-500">
               Powered by OCR · CV · Generative AI · NLP Models
             </p>
-
             <div className="pt-3">
               <span className="inline-block px-4 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-medium shadow-md">
                 Developed by <span className="font-semibold">Kiran Kumar S</span>
