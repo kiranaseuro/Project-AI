@@ -30,7 +30,7 @@ import {
 const getBackendUrl = (): string => {
   // Check for environment variable (e.g., from a .env file processed by Vite/React)
   // If not found, fall back to a default or constructed URL based on window.location
-  const envUrl = process.env.REACT_APP_BACKEND_URL || import.meta.env.VITE_REACT_APP_BACKEND_URL;
+  const envUrl = process.env.REACT_APP_BACKEND_URL;
 
   if (envUrl) {
     // Ensure the URL ends with '/v1' if not already present
