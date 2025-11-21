@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   backend:
     build: ./server
@@ -7,9 +8,9 @@ services:
     env_file:
       - ./server/.env
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - TESSDATA_PATH=/usr/share/tessdata
-      - OPENAI_API_KEY: ${OPENAI_API_KEY}  
+      SPRING_PROFILES_ACTIVE: docker
+      TESSDATA_PATH: /usr/share/tessdata
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     volumes:
       - ./server/tessdata:/usr/share/tessdata:ro
     restart: unless-stopped
