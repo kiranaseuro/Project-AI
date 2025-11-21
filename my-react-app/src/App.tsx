@@ -26,31 +26,47 @@ import {
   XCircle as XCircleIcon,
 } from "lucide-react";
 
-// Function to get the backend URL dynamically
-// Function to get the backend URL dynamically
+// Function to get the backend URL dynamically from environment variable or window location
 const getBackendUrl = (): string => {
-  // Check for environment variable (e.g., from a .env file processed by Create React App)
-  // If not found, fall back to a default or constructed URL based on window.location
-  console.log("REACT_APP_BACKEND_URL environment variable:", process.env.REACT_APP_BACKEND_URL); // Debug log
-  const envUrl = process.env.REACT_APP_BACKEND_URL ||  'http://localhost:8080';
-
-  if (envUrl) {
-    // Ensure the URL ends with '/v1' if not already present
-    const baseUrl = envUrl.endsWith('/v1') ? envUrl : `${envUrl}/v1`;
-    console.log("Using backend URL from environment variable:", baseUrl); // Debug log
-    return baseUrl;
+  // Try to read from environment variable that would be injected during build (CRA/.env handling)
+  // Also fallback to localhost for local development
+  let envUrl = (typeof process !== "undefined"
+    ? process.env.REACT_APP_BACKEND_URL
+    : undefined) as string | undefined;
+  // For frontend deployed statically: also allow reading from window.ENV or window.REACT_APP_BACKEND_URL if present
+  if (
+    !envUrl &&
+    typeof window !== "undefined" &&
+    (window as any).REACT_APP_BACKEND_URL
+  ) {
+    envUrl = (window as any).REACT_APP_BACKEND_URL;
+  }
+  // Fallback: for static deployments where a global ENV is injected (e.g., from nginx or an index.html inline script)
+  if (
+    !envUrl &&
+    typeof window !== "undefined" &&
+    (window as any).ENV &&
+    (window as any).ENV.REACT_APP_BACKEND_URL
+  ) {
+    envUrl = (window as any).ENV.REACT_APP_BACKEND_URL;
   }
 
-  // Fallback: construct URL based on current window location
-  // This assumes the backend is on the same host but different port (e.g., :8080)
-  // Example: http://localhost:3000 -> http://localhost:8080/v1
-  // Example: https://myapp.com -> https://myapp.com:8080/v1 (if backend is on different port on same host)
-  // Or, if the backend is on a completely different host specified by an environment variable, it should be set there.
-  // For this fallback, we'll assume a common dev setup where backend is on port 8080.
-  // A more robust fallback might be needed depending on deployment.
-  // Here, we'll default to the original hardcoded value if environment variable is not set.
-  console.warn("REACT_APP_BACKEND_URL environment variable not found. Defaulting to http://localhost:8080/v1.");
-  return "http://localhost:8080/v1";
+  // If not found, fallback to localhost
+  if (!envUrl) {
+    // Try to smartly guess backend URL based on frontend origin and add port 8080 and path "/v1"
+    if (typeof window !== "undefined" && window.location) {
+      const { protocol, hostname } = window.location;
+      return `${protocol}//${hostname}:8080/v1`;
+    }
+    // Last fallback
+    return "http://localhost:8080/v1";
+  }
+
+  // Ensure "/v1" is at the end if not already present
+  const baseUrl = envUrl.endsWith("/v1")
+    ? envUrl
+    : envUrl.replace(/\/+$/, "") + "/v1";
+  return baseUrl;
 };
 
 const API_BASE = getBackendUrl();
@@ -136,8 +152,8 @@ const App = () => {
   const [showExtractionList, setShowExtractionList] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Log the API_BASE on component mount for debugging
   useEffect(() => {
+    // Log current backend url for debugging
     console.log("Using API Base URL:", API_BASE);
   }, []);
 
