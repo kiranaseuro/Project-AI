@@ -29,7 +29,7 @@ import com.task.hwai.service.AgentService;
 
 @RestController
 @RequestMapping("/v1")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "*")
 public class RunController {
     private final RunRepo runRepo;
     private final ExtractionRepo extractionRepo;
