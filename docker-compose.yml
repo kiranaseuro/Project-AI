@@ -4,6 +4,8 @@ services:
     build: ./server
     ports:
       - "8080:8080"
+    env_file:
+      - ./server/.env
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - TESSDATA_PATH=/usr/share/tessdata
