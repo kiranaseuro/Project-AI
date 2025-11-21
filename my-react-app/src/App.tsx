@@ -26,6 +26,19 @@ import {
   XCircle as XCircleIcon,
 } from "lucide-react";
 
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Polyfill (RFC4122 version 4)
+  // @ts-ignore
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, (c: any) =>
+    (c ^ (typeof crypto !== "undefined" && crypto.getRandomValues
+      ? crypto.getRandomValues(new Uint8Array(1))[0]
+      : Math.random() * 16) >> (c / 4)).toString(16)
+  );
+}
+
 // Function to get the backend URL dynamically from environment variable or window location
 const getBackendUrl = (): string => {
   // Try to read from environment variable that would be injected during build (CRA/.env handling)
@@ -224,7 +237,7 @@ const App = () => {
             setRunId(resp.runId);
             setStatus("QUEUED");
             const newItem: HistoryItem = {
-              id: crypto.randomUUID(),
+              id: generateUUID(), 
               fileName: selectedFile.name,
               runId: resp.runId,
               status: "QUEUED",
