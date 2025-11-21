@@ -32,7 +32,7 @@ const getBackendUrl = (): string => {
   // Check for environment variable (e.g., from a .env file processed by Create React App)
   // If not found, fall back to a default or constructed URL based on window.location
   console.log("REACT_APP_BACKEND_URL environment variable:", process.env.REACT_APP_BACKEND_URL); // Debug log
-  const envUrl = process.env.REACT_APP_BACKEND_URL;
+  const envUrl = process.env.REACT_APP_BACKEND_URL ||  'http://localhost:8080';
 
   if (envUrl) {
     // Ensure the URL ends with '/v1' if not already present
